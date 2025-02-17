@@ -1,4 +1,3 @@
-// App.jsx
 import React, { useState, useEffect } from 'react';
 import './App.css';
 
@@ -9,6 +8,7 @@ function App() {
   });
   const [newTask, setNewTask] = useState('');
   const [draggedItem, setDraggedItem] = useState(null);
+  const [draggedOverItem, setDraggedOverItem] = useState(null);
 
   useEffect(() => {
     localStorage.setItem('tasks', JSON.stringify(tasks));
@@ -23,7 +23,7 @@ function App() {
   };
 
   const toggleTask = (id) => {
-    setTasks(tasks.map(task => 
+    setTasks(tasks.map(task =>
       task.id === id ? { ...task, completed: !task.completed } : task
     ));
   };
@@ -32,8 +32,8 @@ function App() {
     setTasks(tasks.filter(task => task.id !== id));
   };
 
-  const handleDragStart = (e, index) => {
-    setDraggedItem(tasks[index]);
+  const handleDragStart = (e, index, type) => {
+    setDraggedItem({ index, type });
     e.target.classList.add('dragging');
     e.dataTransfer.effectAllowed = 'move';
   };
@@ -41,26 +41,62 @@ function App() {
   const handleDragEnd = (e) => {
     e.target.classList.remove('dragging');
     setDraggedItem(null);
+    setDraggedOverItem(null);
   };
 
-  const handleDragOver = (e, index) => {
+  const handleDragOver = (e, index, type) => {
     e.preventDefault();
     if (!draggedItem) return;
 
-    const draggedOverItem = tasks[index];
-    if (draggedItem === draggedOverItem) return;
-
-    const newTasks = tasks.filter(task => task !== draggedItem);
-    newTasks.splice(index, 0, draggedItem);
-    setTasks(newTasks);
+    if (draggedItem.type === type) {
+      setDraggedOverItem({ index, type });
+    }
   };
+
+  const handleDrop = () => {
+    if (!draggedItem || !draggedOverItem) return;
+
+    const { index: draggedIndex, type: draggedType } = draggedItem;
+    const { index: overIndex, type: overType } = draggedOverItem;
+
+    if (draggedType === overType) {
+      const items = draggedType === 'pending' ? pendingTasks : completedTasks;
+      const newItems = [...items];
+      const [draggedItem] = newItems.splice(draggedIndex, 1);
+      newItems.splice(overIndex, 0, draggedItem);
+
+      if (draggedType === 'pending') {
+        setTasks([...newItems, ...completedTasks]);
+      } else {
+        setTasks([...pendingTasks, ...newItems]);
+      }
+    }
+
+    setDraggedItem(null);
+    setDraggedOverItem(null);
+  };
+
+  const completedTasks = tasks.filter(task => task.completed);
+  const pendingTasks = tasks.filter(task => !task.completed);
 
   return (
     <div className="app">
-      <div className="todo-container">
-        <h1>Tasks</h1>
+      {/* Video Background */}
+      <div className="video-background">
+        <video autoPlay muted loop id="bg-video">
+          <source src="/videobg2.mp4" type="video/mp4" />
+          Your browser does not support the video tag.
+        </video>
+      </div>
+
+      {/* Heading Block */}
+      <div className="heading-block">
+        <h1>ToDo App</h1>
         <p className="subtitle">Drag and drop to reorder your tasks</p>
-        
+      </div>
+
+      {/* Add Task Block */}
+      <div className="add-task-block">
         <form onSubmit={addTask} className="add-task-form">
           <input
             type="text"
@@ -70,16 +106,20 @@ function App() {
             className="task-input"
           />
         </form>
+      </div>
 
-        <div className="task-list">
-          {tasks.map((task, index) => (
+      {/* Pending Tasks Block */}
+      <div className="tasks-block">
+        <h2>Pending Tasks</h2>
+        <div className="task-list" onDrop={handleDrop}>
+          {pendingTasks.map((task, index) => (
             <div
               key={task.id}
               className="task-item"
               draggable
-              onDragStart={(e) => handleDragStart(e, index)}
+              onDragStart={(e) => handleDragStart(e, index, 'pending')}
               onDragEnd={handleDragEnd}
-              onDragOver={(e) => handleDragOver(e, index)}
+              onDragOver={(e) => handleDragOver(e, index, 'pending')}
             >
               <div className="drag-handle">⋮⋮</div>
               <input
@@ -102,6 +142,43 @@ function App() {
           ))}
         </div>
       </div>
+
+      {/* Completed Tasks Block */}
+      {completedTasks.length > 0 && (
+        <div className="tasks-block completed-tasks-block">
+          <h2>Completed Tasks</h2>
+          <div className="task-list" onDrop={handleDrop}>
+            {completedTasks.map((task, index) => (
+              <div
+                key={task.id}
+                className="task-item"
+                draggable
+                onDragStart={(e) => handleDragStart(e, index, 'completed')}
+                onDragEnd={handleDragEnd}
+                onDragOver={(e) => handleDragOver(e, index, 'completed')}
+              >
+                <div className="drag-handle">⋮⋮</div>
+                <input
+                  type="checkbox"
+                  checked={task.completed}
+                  onChange={() => toggleTask(task.id)}
+                  className="task-checkbox"
+                />
+                <span className={`task-text ${task.completed ? 'completed' : ''}`}>
+                  {task.text}
+                </span>
+                <button
+                  onClick={() => deleteTask(task.id)}
+                  className="delete-button"
+                  aria-label="Delete task"
+                >
+                  🗑️
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
